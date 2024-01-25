@@ -1,4 +1,5 @@
 """Unit tests for data models."""
+
 import logging
 
 import pytest
@@ -7,8 +8,8 @@ from ols.app.models.config import (
     Config,
     ConversationCacheConfig,
     InvalidConfigurationError,
-    LLMConfig,
-    LoggerConfig,
+    LLMProviders,
+    LoggingConfig,
     MemoryConfig,
     ModelConfig,
     OLSConfig,
@@ -56,19 +57,17 @@ def test_model_config():
         {
             "name": "test_name",
             "url": "test_url",
-            "credential_path": "test_credential_path",
+            "credentials_path": "tests/config/secret.txt",
         }
     )
 
     assert model_config.name == "test_name"
     assert model_config.url == "test_url"
-    assert model_config.credential_path == "test_credential_path"
-    assert model_config.credentials is None
+    assert model_config.credentials == "secret_key"
 
     model_config = ModelConfig()
     assert model_config.name is None
     assert model_config.url is None
-    assert model_config.credential_path is None
     assert model_config.credentials is None
 
 
@@ -78,33 +77,27 @@ def test_provider_config():
         {
             "name": "test_name",
             "url": "test_url",
-            "credential_path": "test_credential_path",
+            "credentials_path": "tests/config/secret.txt",
             "models": [
                 {
                     "name": "test_model_name",
                     "url": "test_model_url",
-                    "credential_path": "test_model_credential_path",
+                    "credentials_path": "tests/config/secret.txt",
                 }
             ],
         }
     )
     assert provider_config.name == "test_name"
     assert provider_config.url == "test_url"
-    assert provider_config.credential_path == "test_credential_path"
-    assert provider_config.credentials is None
+    assert provider_config.credentials == "secret_key"
     assert len(provider_config.models) == 1
     assert provider_config.models["test_model_name"].name == "test_model_name"
     assert provider_config.models["test_model_name"].url == "test_model_url"
-    assert (
-        provider_config.models["test_model_name"].credential_path
-        == "test_model_credential_path"
-    )
-    assert provider_config.models["test_model_name"].credentials is None
+    assert provider_config.models["test_model_name"].credentials == "secret_key"
 
     provider_config = ProviderConfig()
     assert provider_config.name is None
     assert provider_config.url is None
-    assert provider_config.credential_path is None
     assert provider_config.credentials is None
     assert len(provider_config.models) == 0
 
@@ -113,7 +106,7 @@ def test_provider_config():
             {
                 "name": "test_name",
                 "url": "test_url",
-                "credential_path": "test_credential_path",
+                "credentials_path": "tests/config/secret.txt",
                 "models": [],
             }
         )
@@ -124,11 +117,11 @@ def test_provider_config():
             {
                 "name": "test_name",
                 "url": "test_url",
-                "credential_path": "test_credential_path",
+                "credentials_path": "tests/config/secret.txt",
                 "models": [
                     {
                         "url": "test_model_url",
-                        "credential_path": "test_model_credential_path",
+                        "credentials_path": "tests/config/secret.txt",
                     }
                 ],
             }
@@ -136,61 +129,53 @@ def test_provider_config():
     assert "model name is missing" in str(excinfo.value)
 
 
-def test_llm_config():
-    """Test the LLMConfig model."""
-    llm_config = LLMConfig(
+def test_llm_providers():
+    """Test the LLMProviders model."""
+    llm_providers = LLMProviders(
         [
             {
                 "name": "test_provider_name",
                 "url": "test_provider_url",
-                "credential_path": "test_provider_credential_path",
+                "credentials_path": "tests/config/secret.txt",
                 "models": [
                     {
                         "name": "test_model_name",
                         "url": "test_model_url",
-                        "credential_path": "test_model_credential_path",
+                        "credentials_path": "tests/config/secret.txt",
                     }
                 ],
             },
         ]
     )
-    assert len(llm_config.providers) == 1
-    assert llm_config.providers["test_provider_name"].name == "test_provider_name"
-    assert llm_config.providers["test_provider_name"].url == "test_provider_url"
+    assert len(llm_providers.providers) == 1
+    assert llm_providers.providers["test_provider_name"].name == "test_provider_name"
+    assert llm_providers.providers["test_provider_name"].url == "test_provider_url"
+    assert llm_providers.providers["test_provider_name"].credentials == "secret_key"
+    assert len(llm_providers.providers["test_provider_name"].models) == 1
     assert (
-        llm_config.providers["test_provider_name"].credential_path
-        == "test_provider_credential_path"
-    )
-    assert llm_config.providers["test_provider_name"].credentials is None
-    assert len(llm_config.providers["test_provider_name"].models) == 1
-    assert (
-        llm_config.providers["test_provider_name"].models["test_model_name"].name
+        llm_providers.providers["test_provider_name"].models["test_model_name"].name
         == "test_model_name"
     )
     assert (
-        llm_config.providers["test_provider_name"].models["test_model_name"].url
+        llm_providers.providers["test_provider_name"].models["test_model_name"].url
         == "test_model_url"
     )
     assert (
-        llm_config.providers["test_provider_name"]
+        llm_providers.providers["test_provider_name"]
         .models["test_model_name"]
-        .credential_path
-        == "test_model_credential_path"
-    )
-    assert (
-        llm_config.providers["test_provider_name"].models["test_model_name"].credentials
-        is None
+        .credentials
+        == "secret_key"
     )
 
-    llm_config = LLMConfig()
-    assert len(llm_config.providers) == 0
+    llm_providers = LLMProviders()
+    assert len(llm_providers.providers) == 0
 
     with pytest.raises(InvalidConfigurationError) as excinfo:
-        LLMConfig(
+        LLMProviders(
             [
                 {
                     "url": "test_provider_url",
-                    "credential_path": "test_provider_credential_path",
+                    "credentials_path": "tests/config/secret.txt",
                     "models": [],
                 },
             ]
@@ -198,24 +183,41 @@ def test_llm_config():
     assert "provider name is missing" in str(excinfo.value)
 
 
-def test_logger_config():
-    """Test the LoggerConfig model."""
-    logger_config = LoggerConfig(
-        {
-            "default_level": "INFO",
-        }
-    )
-    assert logger_config.default_level == logging.INFO
+class TestLoggingConfig:
+    """Test the LoggingConfig model."""
 
-    logger_config = LoggerConfig(
-        {
-            "default_level": logging.INFO,
-        }
-    )
-    assert logger_config.default_level == "INFO"
+    def test_valid_values(self):
+        """Test valid values."""
+        # test default values
+        logging_config = LoggingConfig({})
+        assert logging_config.app_log_level == logging.INFO
+        assert logging_config.library_log_level == logging.WARNING
 
-    logger_config = LoggerConfig()
-    assert logger_config.default_level is None
+        # test custom values
+        logging_config = LoggingConfig(
+            {
+                "app_log_level": "debug",
+                "library_log_level": "debug",
+            }
+        )
+        assert logging_config.app_log_level == logging.DEBUG
+        assert logging_config.library_log_level == logging.DEBUG
+
+        logging_config = LoggingConfig()
+        assert logging_config.app_log_level is None
+
+    def test_invalid_values(self):
+        """Test invalid values."""
+        # value is not string
+        with pytest.raises(InvalidConfigurationError, match="invalid log level for 5"):
+            LoggingConfig({"app_log_level": 5})
+
+        # value is not valid log level
+        with pytest.raises(
+            InvalidConfigurationError,
+            match="invalid log level for app_log_level: dingdong",
+        ):
+            LoggingConfig({"app_log_level": "dingdong"})
 
 
 def test_redis_config():
@@ -290,11 +292,11 @@ def test_conversation_cache_config():
 
     with pytest.raises(InvalidConfigurationError) as excinfo:
         ConversationCacheConfig({"type": "redis"})
-    assert "redis config is missing" in str(excinfo.value)
+    assert "redis configuration is missing" in str(excinfo.value)
 
     with pytest.raises(InvalidConfigurationError) as excinfo:
         ConversationCacheConfig({"type": "memory"})
-    assert "memory config is missing" in str(excinfo.value)
+    assert "memory configuration is missing" in str(excinfo.value)
 
 
 def test_ols_config():
@@ -311,15 +313,15 @@ def test_ols_config():
             "validator_model": "test_validator_model",
             "yaml_provider": "test_yaml_provider",
             "yaml_model": "test_yaml_model",
-            "ols_enable_dev_ui": True,
+            "enable_debug_ui": True,
             "conversation_cache": {
                 "type": "memory",
                 "memory": {
                     "max_entries": 100,
                 },
             },
-            "logger_config": {
-                "default_level": "INFO",
+            "logging_config": {
+                "logging_level": "INFO",
             },
         }
     )
@@ -336,28 +338,28 @@ def test_ols_config():
     assert ols_config.enable_debug_ui is True
     assert ols_config.conversation_cache.type == "memory"
     assert ols_config.conversation_cache.memory.max_entries == 100
-    assert ols_config.logger_config.default_level == logging.INFO
+    assert ols_config.logging_config.app_log_level == logging.INFO
 
 
 def test_config():
     """Test the Config model of the Global service configuration."""
     config = Config(
         {
-            "llm_providers": [
+            "LLMProviders": [
                 {
                     "name": "test_provider_name",
                     "url": "test_provider_url",
-                    "credential_path": "test_provider_credential_path",
+                    "credentials_path": "tests/config/secret.txt",
                     "models": [
                         {
                             "name": "test_model_name",
                             "url": "test_model_url",
-                            "credential_path": "test_model_credential_path",
+                            "credentials_path": "tests/config/secret.txt",
                         }
                     ],
                 },
             ],
-            "ols_config": {
+            "OLSConfig": {
                 "default_provider": "test_default_provider",
                 "default_model": "test_default_model",
                 "classifier_provider": "test_classifer_provider",
@@ -368,43 +370,48 @@ def test_config():
                 "validator_model": "test_validator_model",
                 "yaml_provider": "test_yaml_provider",
                 "yaml_model": "test_yaml_model",
-                "ols_enable_dev_ui": True,
+                "enable_debug_ui": True,
                 "conversation_cache": {
                     "type": "memory",
                     "memory": {
                         "max_entries": 100,
                     },
                 },
-                "logger_config": {
-                    "default_level": "INFO",
+                "logging_config": {
+                    "app_log_level": "error",
                 },
             },
         }
     )
-    assert len(config.llm_config.providers) == 1
+    assert len(config.llm_providers.providers) == 1
     assert (
-        config.llm_config.providers["test_provider_name"].name == "test_provider_name"
+        config.llm_providers.providers["test_provider_name"].name
+        == "test_provider_name"
     )
-    assert config.llm_config.providers["test_provider_name"].url == "test_provider_url"
     assert (
-        config.llm_config.providers["test_provider_name"].credential_path
-        == "test_provider_credential_path"
+        config.llm_providers.providers["test_provider_name"].url == "test_provider_url"
     )
-    assert config.llm_config.providers["test_provider_name"].credentials is None
-    assert len(config.llm_config.providers["test_provider_name"].models) == 1
     assert (
-        config.llm_config.providers["test_provider_name"].models["test_model_name"].name
+        config.llm_providers.providers["test_provider_name"].credentials == "secret_key"
+    )
+    assert len(config.llm_providers.providers["test_provider_name"].models) == 1
+    assert (
+        config.llm_providers.providers["test_provider_name"]
+        .models["test_model_name"]
+        .name
         == "test_model_name"
     )
     assert (
-        config.llm_config.providers["test_provider_name"].models["test_model_name"].url
+        config.llm_providers.providers["test_provider_name"]
+        .models["test_model_name"]
+        .url
         == "test_model_url"
     )
     assert (
-        config.llm_config.providers["test_provider_name"]
+        config.llm_providers.providers["test_provider_name"]
         .models["test_model_name"]
-        .credential_path
-        == "test_model_credential_path"
+        .credentials
+        == "secret_key"
     )
     assert config.ols_config.default_provider == "test_default_provider"
     assert config.ols_config.default_model == "test_default_model"
@@ -419,83 +426,57 @@ def test_config():
     assert config.ols_config.enable_debug_ui is True
     assert config.ols_config.conversation_cache.type == "memory"
     assert config.ols_config.conversation_cache.memory.max_entries == 100
-    assert config.ols_config.logger_config.default_level == logging.INFO
+    assert config.ols_config.logging_config.app_log_level == logging.ERROR
 
     with pytest.raises(InvalidConfigurationError) as excinfo:
-        Config().validate()
-    assert "no llm config found" in str(excinfo.value)
+        Config().validate_yaml()
+    assert "no LLMProviders found" in str(excinfo.value)
 
     with pytest.raises(InvalidConfigurationError) as excinfo:
-        Config({"llm_providers": []}).validate()
-    assert "no llm providers found" in str(excinfo.value)
-
-    # todo: activate test after merging https://github.com/openshift/lightspeed-service/pull/166
-    # with pytest.raises(InvalidConfigurationError) as excinfo:
-    #     Config(
-    #         {
-    #             "llm_providers": [
-    #                 {
-    #                     "name": "test_provider_name",
-    #                     "url": "test_provider_url",
-    #                     "credential_path": "test_provider_credential_path",
-    #                     "models": [
-    #                         {
-    #                             "name": "test_model_name",
-    #                             "url": "test_model_url",
-    #                             "credential_path": "test_model_credential_path",
-    #                         }
-    #                     ],
-    #                 }
-    #             ],
-    #         }
-    #     ).validate()
-    # assert "no ols config found" in str(excinfo.value)
+        Config({"LLMProviders": []}).validate_yaml()
+    assert "no OLSConfig found" in str(excinfo.value)
 
     with pytest.raises(InvalidConfigurationError) as excinfo:
         Config(
             {
-                "llm_providers": [
+                "LLMProviders": [
                     {
                         "name": "test_provider_name",
-                        "url": "test_provider_url",
-                        "credential_path": "test_provider_credential_path",
+                        "url": "http://test_provider_url",
+                        "credentials_path": "tests/config/secret.txt",
                         "models": [
                             {
                                 "name": "test_model_name",
-                                "url": "test_model_url",
-                                "credential_path": "test_model_credential_path",
+                                "url": "http://test_model_url",
+                                "credentials_path": "tests/config/secret.txt",
                             }
                         ],
                     }
                 ],
-                "ols_config": {"default_provider": "test_default_provider"},
             }
-        ).validate()
-    assert "default model is not set" in str(excinfo.value)
+        ).validate_yaml()
+    assert "no OLSConfig found" in str(excinfo.value)
 
-    # todo: activate test after merging https://github.com/openshift/lightspeed-service/pull/166
-    # and add test for the validations of conversation cache and logging config
-    # with pytest.raises(InvalidConfigurationError) as excinfo:
-    #     Config(
-    #         {
-    #             "llm_providers": [
-    #                 {
-    #                     "name": "test_provider_name",
-    #                     "url": "test_provider_url",
-    #                     "credential_path": "test_provider_credential_path",
-    #                     "models": [
-    #                         {
-    #                             "name": "test_model_name",
-    #                             "url": "test_model_url",
-    #                             "credential_path": "test_model_credential_path",
-    #                         }
-    #                     ],
-    #                 }
-    #             ],
-    #             "ols_config": {
-    #                 "default_provider": "test_default_provider",
-    #                 "default_model": "test_default_model",
-    #             },
-    #         }
-    #     ).validate()
-    # assert "classifier model is not set" in str(excinfo.value)
+    with pytest.raises(InvalidConfigurationError) as excinfo:
+        Config(
+            {
+                "LLMProviders": [
+                    {
+                        "name": "test_provider_name",
+                        "url": "http://test_provider_url",
+                        "credentials_path": "tests/config/secret.txt",
+                        "models": [
+                            {
+                                "name": "test_model_name",
+                                "url": "http://test_model_url",
+                                "credentials_path": "tests/config/secret.txt",
+                            }
+                        ],
+                    }
+                ],
+                "OLSConfig": {"default_provider": "test_default_provider"},
+            }
+        ).validate_yaml()
+    assert "default_provider is specified, but default_model is missing" in str(
+        excinfo.value
+    )

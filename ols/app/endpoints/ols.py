@@ -1,17 +1,21 @@
 """Handlers for all OLS-related REST API endpoints."""
 
-from fastapi import APIRouter, HTTPException
+import logging
+
+from fastapi import APIRouter, HTTPException, status
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 
 from ols import constants
 from ols.app.models.models import LLMRequest
 from ols.app.utils import Utils
-from ols.src.docs.docs_summarizer import DocsSummarizer
 from ols.src.llms.llm_loader import LLMLoader
+from ols.src.query_helpers.docs_summarizer import DocsSummarizer
 from ols.src.query_helpers.question_validator import QuestionValidator
 from ols.src.query_helpers.yaml_generator import YamlGenerator
 from ols.utils import config
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["query"])
 
@@ -26,8 +30,6 @@ def conversation_request(llm_request: LLMRequest) -> LLMRequest:
     Returns:
         Response containing the processed information.
     """
-    logger = config.default_logger
-
     # Initialize variables
     previous_input = None
     conversation = llm_request.conversation_id
@@ -54,21 +56,30 @@ def conversation_request(llm_request: LLMRequest) -> LLMRequest:
     except Exception as validation_error:
         logger.error("Error while validating question")
         logger.error(validation_error)
-        raise HTTPException(status_code=500, detail="Error while validating question")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error while validating question",
+        )
 
     validation = validation_result[0]
     question_type = validation_result[1]
 
     match (validation, question_type):
-        case (constants.INVALID, _):
+        case (constants.SUBJECT_INVALID, _):
             logger.info(
-                f"{conversation} Query is not relevant to kubernetes or ocp, returning"
+                f"{conversation} - Query is not relevant to kubernetes or ocp, returning"
             )
-            llm_response.response = "Sorry, I can only answer questions about \
+            llm_response.response = str(
+                {
+                    "detail": {
+                        "response": "I can only answer questions about \
             OpenShift and Kubernetes. Please rephrase your question"
-        case (constants.VALID, constants.NOYAML):
+                    }
+                }
+            )
+        case (constants.SUBJECT_VALID, constants.CATEGORY_GENERIC):
             logger.info(
-                f"{conversation} Question is not about yaml, sending for generic info"
+                f"{conversation} - Question is not about yaml, sending for generic info"
             )
             # Summarize documentation
             docs_summarizer = DocsSummarizer()
@@ -77,15 +88,15 @@ def conversation_request(llm_request: LLMRequest) -> LLMRequest:
                     conversation, llm_request.query
                 )
             except Exception as summarizer_error:
-                logger.error("Error while obtainting answer for user question")
+                logger.error("Error while obtaining answer for user question")
                 logger.error(summarizer_error)
                 raise HTTPException(
-                    status_code=500,
-                    detail="Error while obtainting answer for user question",
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Error while obtaining answer for user question",
                 )
-        case (constants.VALID, constants.YAML):
+        case (constants.SUBJECT_VALID, constants.CATEGORY_YAML):
             logger.info(
-                f"{conversation} Question is about yaml, sending to the YAML generator"
+                f"{conversation} - Question is about yaml, sending to the YAML generator"
             )
             yaml_generator = YamlGenerator()
             try:
@@ -93,19 +104,24 @@ def conversation_request(llm_request: LLMRequest) -> LLMRequest:
                     conversation, llm_request.query, previous_input
                 )
             except Exception as yamlgenerator_error:
-                logger.error("Error while obtainting yaml for user question")
+                logger.error("Error while obtaining yaml for user question")
                 logger.error(yamlgenerator_error)
                 raise HTTPException(
-                    status_code=500,
-                    detail="Error while obtainting answer for user question",
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Error while obtaining answer for user question",
                 )
             llm_response.response = generated_yaml
-        case (constants.VALID, constants.REPHRASE):
+        case (constants.SUBJECT_VALID, constants.CATEGORY_UNKNOWN):
             logger.info(
-                f"{conversation} Query is relevant, but cannot identify the intent"
+                f"{conversation} - Query is relevant, but cannot identify the intent"
             )
-            llm_response.response = (
-                "Sorry, Please rephrase your question or provide more detail"
+            llm_response.response = str(
+                {
+                    "detail": {
+                        "response": "Question does not provide enough context, \
+                Please rephrase your question or provide more detail"
+                    }
+                }
             )
 
     if config.conversation_cache is not None:
@@ -134,8 +150,8 @@ def conversation_request_debug_api(llm_request: LLMRequest) -> LLMRequest:
     llm_response = LLMRequest(query=llm_request.query)
     llm_response.conversation_id = conversation
 
-    config.default_logger.info(f"{conversation} New conversation")
-    config.default_logger.info(f"{conversation} Incoming request: {llm_request.query}")
+    logger.info(f"{conversation} New conversation")
+    logger.info(f"{conversation} Incoming request: {llm_request.query}")
 
     bare_llm = LLMLoader(
         config.ols_config.default_provider,
@@ -146,7 +162,7 @@ def conversation_request_debug_api(llm_request: LLMRequest) -> LLMRequest:
     llm_chain = LLMChain(llm=bare_llm, prompt=prompt, verbose=True)
     response = llm_chain(inputs={"query": llm_request.query})
 
-    config.default_logger.info(f"{conversation} Model returned: {response}")
+    logger.info(f"{conversation} Model returned: {response}")
 
     llm_response.response = response["text"]
 

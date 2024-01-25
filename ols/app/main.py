@@ -1,10 +1,14 @@
 """Entry point to FastAPI-based web service."""
 
+import logging
+import os
+
 from fastapi import FastAPI
 
 from ols.app.endpoints import feedback, health, ols
 from ols.src.ui.gradio_ui import GradioUI
 from ols.utils import config
+from ols.utils.logging import configure_logging
 
 app = FastAPI(
     title="Swagger OpenShift LightSpeed Service - OpenAPI",
@@ -13,13 +17,19 @@ app = FastAPI(
                   """,
 )
 
-# config = load_config(os.environ.get("OLS_CONFIG_FILE","olsconfig.yaml"))
-config.load_config_from_env()
+
+config.init_config(os.environ.get("OLS_CONFIG_FILE", "olsconfig.yaml"))
+
+
+configure_logging(config.ols_config.logging_config)
+logger = logging.getLogger(__name__)
+
+
 if config.ols_config.enable_debug_ui:
-    app = GradioUI(logger=config.default_logger).mount_ui(app)
+    app = GradioUI().mount_ui(app)
 else:
-    config.default_logger.info(
-        "Embedded Gradio UI is disabled. To enable set OLS_ENABLE_DEV_UI to True"
+    logger.info(
+        "Embedded Gradio UI is disabled. To enable set enable_debug_ui: true in configuration file"
     )
 
 

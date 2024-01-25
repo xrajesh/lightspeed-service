@@ -1,20 +1,19 @@
 """Class responsible for generating YAML responses to user requests."""
 
+import logging
+
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 
 from ols import constants
 from ols.src.llms.llm_loader import LLMLoader
-from ols.utils import config
-from ols.utils.logger import Logger
+from ols.src.query_helpers import QueryHelper
+
+logger = logging.getLogger(__name__)
 
 
-class YamlGenerator:
+class YamlGenerator(QueryHelper):
     """This class is responsible for generating YAML responses to user requests."""
-
-    def __init__(self) -> None:
-        """Initialize the `YamlGenerator` instance."""
-        self.logger = Logger("yaml_generator").logger
 
     def generate_yaml(
         self, conversation_id: str, query: str, history: str | None = None, **kwargs
@@ -30,21 +29,18 @@ class YamlGenerator:
         Returns:
             The generated YAML response.
         """
-        model = config.ols_config.validator_model
-        provider = config.ols_config.validator_provider
-
         verbose = kwargs.get("verbose", "").lower() == "true"
         settings_string = (
             f"conversation: {conversation_id}, "
             f"query: {query}, "
-            f"provider: {provider}, "
-            f"model: {model}, "
+            f"provider: {self.provider}, "
+            f"model: {self.model}, "
             f"verbose: {verbose}"
         )
-        self.logger.info(f"{conversation_id} call settings: {settings_string}")
-        self.logger.info(f"{conversation_id} using model: {model}")
+        logger.info(f"{conversation_id} call settings: {settings_string}")
+        logger.info(f"{conversation_id} using model: {self.model}")
 
-        bare_llm = LLMLoader(provider, model).llm
+        bare_llm = LLMLoader(self.provider, self.model).llm
 
         if history:
             prompt_instructions = PromptTemplate.from_template(
@@ -57,8 +53,8 @@ class YamlGenerator:
             )
             task_query = prompt_instructions.format(query=query)
 
-        self.logger.info(f"{conversation_id} task query: {task_query}")
+        logger.info(f"{conversation_id} task query: {task_query}")
         llm_chain = LLMChain(llm=bare_llm, verbose=verbose, prompt=prompt_instructions)
         response = llm_chain(inputs={"query": query, "history": history})
-        self.logger.info(f"{conversation_id} response:\n{response['text']}")
+        logger.info(f"{conversation_id} response:\n{response['text']}")
         return response["text"]
