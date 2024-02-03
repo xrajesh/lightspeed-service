@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import threading
 from collections import deque
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, List, Union
 
 if TYPE_CHECKING:
     from ols.app.models.config import MemoryConfig
+    from ols.src.cache.conversation import Conversation
+
 from ols.src.cache.cache import Cache
 
 
@@ -29,9 +31,11 @@ class InMemoryCache(Cache):
         """Initialize the InMemoryCache."""
         self.capacity = config.max_entries
         self.deque: deque[str] = deque()
-        self.cache: dict[str, str] = {}
+        self.cache: dict[str, List[Conversation]] = {}
 
-    def get(self, user_id: str, conversation_id: str) -> Union[str, None]:
+    def get(
+        self, user_id: str, conversation_id: str
+    ) -> Union[List[Conversation], None]:
         """Get the value associated with the given key.
 
         Args:
@@ -50,7 +54,9 @@ class InMemoryCache(Cache):
         self.deque.appendleft(key)
         return self.cache[key]
 
-    def insert_or_append(self, user_id: str, conversation_id: str, value: str) -> None:
+    def insert_or_append(
+        self, user_id: str, conversation_id: str, value: Conversation
+    ) -> None:
         """Set the value if a key is not present or else simply appends.
 
         Args:
@@ -65,9 +71,10 @@ class InMemoryCache(Cache):
                 if len(self.deque) == self.capacity:
                     oldest = self.deque.pop()
                     del self.cache[oldest]
-                self.cache[key] = value
+                values = []
+                values.append(value)
+                self.cache[key] = values
             else:
                 self.deque.remove(key)
-                old_value = self.cache[key]
-                self.cache[key] = old_value + "\n" + value
+                self.cache[key].append(value)
             self.deque.appendleft(key)

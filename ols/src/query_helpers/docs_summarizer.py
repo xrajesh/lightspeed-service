@@ -4,13 +4,19 @@ import logging
 from typing import Optional
 
 import llama_index
+from langchain.chains import LLMChain
 from llama_index import ServiceContext, StorageContext, load_index_from_storage
-from llama_index.prompts import PromptTemplate
+from llama_index.prompts import PromptTemplate as LlamaTemplate
 from llama_index.response.schema import Response
 
 from ols import constants
 from ols.src.llms.llm_loader import LLMLoader
 from ols.src.query_helpers import QueryHelper
+from ols.src.query_helpers.chat_history import (
+    get_langchain_chat_history,
+    get_llama_index_chat_history,
+)
+from ols.src.query_helpers.constants import summary_prompt_for_langchain
 from ols.utils import config
 
 logger = logging.getLogger(__name__)
@@ -53,7 +59,10 @@ class DocsSummarizer(QueryHelper):
         logger.info(f"{conversation} call settings: {settings_string}")
 
         # TODO: use history there
-        summarization_template = PromptTemplate(constants.SUMMARIZATION_TEMPLATE)
+        logger.debug(f"History:  {history}")
+        chat_history = get_llama_index_chat_history(history)
+        logger.debug(f"Chat history for chat_engine:  {chat_history}")
+        summarization_template = LlamaTemplate(constants.SUMMARIZATION_TEMPLATE)
 
         logger.info(f"{conversation} Getting service context")
 
@@ -80,20 +89,21 @@ class DocsSummarizer(QueryHelper):
                 logger.info(f"{conversation} Setting up index")
                 index = load_index_from_storage(
                     storage_context=storage_context,
-                    index_id=config.ols_config.reference_content.product_docs_index_id,
                     service_context=service_context,
+                    index_id=config.ols_config.reference_content.product_docs_index_id,
                     verbose=verbose,
                 )
                 logger.info(f"{conversation} Setting up query engine")
-                query_engine = index.as_query_engine(
-                    text_qa_template=summarization_template,
-                    verbose=verbose,
-                    streaming=False,
-                    similarity_top_k=1,
-                )
 
                 logger.info(f"{conversation} Submitting summarization query")
-                summary = query_engine.query(query)
+
+                chat_engine = index.as_chat_engine(
+                    service_context=service_context,
+                    chat_history=chat_history,
+                    chat_mode="context",
+                    system_prompt=summarization_template,
+                )
+                summary = chat_engine.chat(query)
 
                 referenced_documents = "\n".join(
                     [
@@ -110,12 +120,21 @@ class DocsSummarizer(QueryHelper):
 
         if use_llm_without_reference_content:
             logger.info("Using llm to answer the query without reference content")
-            response = bare_llm.invoke(query)
+            chat_history_no_reference = get_langchain_chat_history(history)
+            logger.debug(f"Chat history for chat_llm_chain:  {chat_history_no_reference}")
+            chat_llm_chain = LLMChain(
+                llm=bare_llm,
+                prompt=summary_prompt_for_langchain,
+            )
+            response = chat_llm_chain.invoke(
+                {"query": query, "chat_history": chat_history_no_reference}
+            )
+            response_text = response.get("text")
             summary = Response(
                 "The following response was generated without access to reference content:"
                 "\n\n"
                 # NOTE: The LLM returns AIMessage, but typing sees it as a plain str
-                f"{response.content}"  # type: ignore
+                f"{response_text}"  # type: ignore
             )
             referenced_documents = ""
 

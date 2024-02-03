@@ -1,11 +1,13 @@
 """Unit tests for DocsSummarizer class."""
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from ols.app.models.config import ReferenceContent
+from ols.src.cache.conversation import Conversation
 from ols.src.query_helpers.docs_summarizer import DocsSummarizer, QueryHelper
 from ols.utils import config
 from tests.mock_classes.langchain_interface import mock_langchain_interface
+from tests.mock_classes.llm_chain import mock_llm_chain
 from tests.mock_classes.llm_loader import mock_llm_loader
 from tests.mock_classes.mock_llama_index import MockLlamaIndex
 
@@ -50,7 +52,11 @@ def test_summarize_no_reference_content(storage_context, service_context):
     config.ols_config.reference_content = ReferenceContent(None)
     summarizer = DocsSummarizer()
     question = "What's the ultimate question with answer 42?"
-    summary, documents = summarizer.summarize("1234", question)
+    ml = mock_llm_chain({"text": "ai answer"})
+    ch = [Conversation(user_message="test", assistant_message="test")]
+    ml.invoke = MagicMock(return_value={"text": "success"})
+    with patch("ols.src.query_helpers.docs_summarizer.LLMChain", new=ml):
+        summary, documents = summarizer.summarize("1234", question, ch)
     assert "success" in str(summary)
     assert len(documents) == 0
 
@@ -71,8 +77,10 @@ def test_summarize_incorrect_directory(service_context):
     config.ols_config.reference_content.product_docs_index_id = "product"
     summarizer = DocsSummarizer()
     question = "What's the ultimate question with answer 42?"
-    conversation_id = "01234567-89ab-cdef-0123-456789abcdef"
-    summary, documents = summarizer.summarize(conversation_id, question)
+    ml = mock_llm_chain({"text": "ai answer"})
+    ml.invoke = MagicMock(return_value={"text": "success"})
+    with patch("ols.src.query_helpers.docs_summarizer.LLMChain", new=ml):
+        summary, documents = summarizer.summarize("1234", question)
     assert (
         "The following response was generated without access to reference content"
         in str(summary)

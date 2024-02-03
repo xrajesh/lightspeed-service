@@ -1,12 +1,13 @@
 """Cache that uses Redis to store cached values."""
 
 import threading
-from typing import Union
+from typing import List, Union
 
 import redis
 
 from ols.app.models.config import RedisConfig
 from ols.src.cache.cache import Cache
+from ols.src.cache.conversation import Conversation
 
 
 # TODO
@@ -47,7 +48,9 @@ class RedisCache(Cache):
         self.redis_client.config_set("maxmemory", config.max_memory)
         self.redis_client.config_set("maxmemory-policy", config.max_memory_policy)
 
-    def get(self, user_id: str, conversation_id: str) -> Union[str, None]:
+    def get(
+        self, user_id: str, conversation_id: str
+    ) -> Union[List[Conversation], None]:
         """Get the value associated with the given key.
 
         Args:
@@ -58,10 +61,11 @@ class RedisCache(Cache):
             The value associated with the key, or None if not found.
         """
         key = super().construct_key(user_id, conversation_id)
-
         return self.redis_client.get(key)
 
-    def insert_or_append(self, user_id: str, conversation_id: str, value: str) -> None:
+    def insert_or_append(
+        self, user_id: str, conversation_id: str, value: Conversation
+    ) -> None:
         """Set the value associated with the given key.
 
         Args:
@@ -74,10 +78,12 @@ class RedisCache(Cache):
                 memory is higher than maxmemory.
         """
         key = super().construct_key(user_id, conversation_id)
-
         old_value = self.get(user_id, conversation_id)
         with self._lock:
             if old_value:
-                self.redis_client.set(key, old_value + "\n" + value)
+                old_value.append(value)
+                self.redis_client.set(key, old_value)
             else:
-                self.redis_client.set(key, value)
+                values = []
+                values.append(value)
+                self.redis_client.set(key, values)
