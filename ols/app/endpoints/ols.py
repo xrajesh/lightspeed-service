@@ -13,6 +13,7 @@ from ols.src.llms.llm_loader import LLMConfigurationError, LLMLoader
 from ols.src.query_helpers.docs_summarizer import DocsSummarizer
 from ols.src.query_helpers.question_validator import QuestionValidator
 from ols.utils import config, suid
+from ols.src.cache.conversation import Conversation
 
 logger = logging.getLogger(__name__)
 
@@ -114,10 +115,11 @@ def conversation_request(llm_request: LLMRequest) -> LLMRequest:
                 )
 
     if config.conversation_cache is not None:
+        conversation = Conversation(llm_request.query,str(llm_response.response or ""))
         config.conversation_cache.insert_or_append(
             user_id,
             conversation_id,
-            llm_request.query + "\n\n" + str(llm_response.response or ""),
+            conversation,
         )
     return llm_response
 

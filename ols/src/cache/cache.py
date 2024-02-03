@@ -1,9 +1,10 @@
 """Abstract class that is parent for all cache implementations."""
 
 from abc import ABC, abstractmethod
-from typing import Union
+from typing import Union,List
 
 from ols.utils.suid import check_suid
+from ols.src.cache.conversation import Conversation
 
 
 class Cache(ABC):
@@ -37,7 +38,7 @@ class Cache(ABC):
         return f"{user_id}/{conversation_id}"
 
     @abstractmethod
-    def get(self, user_id: str, conversation_id: str) -> Union[str, None]:
+    def get(self, user_id: str, conversation_id: str) -> Union[List[Conversation], None]:
         """Abstract method to retrieve a value from the cache.
 
         Args:
@@ -49,7 +50,7 @@ class Cache(ABC):
         """
 
     @abstractmethod
-    def insert_or_append(self, user_id: str, conversation_id: str, value: str) -> None:
+    def insert_or_append(self, user_id: str, conversation_id: str, value: Conversation) -> None:
         """Abstract method to store a value in the cache.
 
         Args:
