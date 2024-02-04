@@ -15,7 +15,7 @@ POSSIBLE_QUESTION_VALIDATOR_RESPONSES = (
 SUMMARIZATION_TEMPLATE = """
 The following context contains several pieces of documentation. Please answer the user's question based on this context.
 Documentation context:
-{context_str}
+{query}
 
 Summary:
 

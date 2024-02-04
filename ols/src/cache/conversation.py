@@ -3,5 +3,5 @@
 from typing import NamedTuple 
 
 class Conversation(NamedTuple): 
-    user: str
-    assistant: str
+    userMessage: str
+    assistantMessage: str

@@ -6,12 +6,14 @@ from typing import Optional
 import llama_index
 from llama_index import ServiceContext, StorageContext, load_index_from_storage
 from llama_index.prompts import PromptTemplate
+from llama_index.chat_engine.condense_question import CondenseQuestionChatEngine
 from llama_index.response.schema import Response
 
 from ols import constants
 from ols.src.llms.llm_loader import LLMLoader
 from ols.src.query_helpers import QueryHelper
 from ols.utils import config
+from ols.src.query_helpers.chat_history import get_llama_index_chat_history
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +55,9 @@ class DocsSummarizer(QueryHelper):
         logger.info(f"{conversation} call settings: {settings_string}")
 
         # TODO: use history there
+        logger.info(f"History:  {history}")
+        chat_history=get_llama_index_chat_history(history)
+        logger.info(f"Chat history:  {history}")
         summarization_template = PromptTemplate(constants.SUMMARIZATION_TEMPLATE)
 
         logger.info(f"{conversation} Getting service context")
@@ -80,20 +85,21 @@ class DocsSummarizer(QueryHelper):
                 logger.info(f"{conversation} Setting up index")
                 index = load_index_from_storage(
                     storage_context=storage_context,
-                    index_id=config.ols_config.reference_content.product_docs_index_id,
                     service_context=service_context,
+                    index_id=config.ols_config.reference_content.product_docs_index_id,
                     verbose=verbose,
                 )
                 logger.info(f"{conversation} Setting up query engine")
-                query_engine = index.as_query_engine(
-                    text_qa_template=summarization_template,
-                    verbose=verbose,
-                    streaming=False,
-                    similarity_top_k=1,
-                )
 
                 logger.info(f"{conversation} Submitting summarization query")
-                summary = query_engine.query(query)
+
+                chat_engine=index.as_chat_engine(
+                    service_context=service_context,
+                    chat_history=chat_history,
+                    chat_mode="context",
+                    system_prompt=summarization_template,
+                )
+                summary=chat_engine.chat(query)
 
                 referenced_documents = "\n".join(
                     [
@@ -113,7 +119,6 @@ class DocsSummarizer(QueryHelper):
             response = bare_llm.invoke(query)
             summary = Response(
                 f""" The following response was generated without access to reference content:
-
                         {response}
                     """
             )
