@@ -1,7 +1,7 @@
 """Integration tests for basic OLS REST API endpoints."""
 
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import requests
 from fastapi.testclient import TestClient
@@ -340,17 +340,21 @@ def test_post_question_on_noyaml_response_type() -> None:
                     "ols.utils.config.ols_config.reference_content.product_docs_index_path",
                     "./invalid_dir",
                 ):
-                    conversation_id = suid.get_suid()
-                    response = client.post(
-                        "/v1/query",
-                        json={
-                            "conversation_id": conversation_id,
-                            "query": "test query",
-                        },
-                    )
-                    print(response)
-                    assert response.status_code == requests.codes.ok
-                    assert (
-                        "The following response was generated without access to reference content:"
-                        in response.json()["response"]
-                    )
+                    ml.invoke = MagicMock(return_value={"text": "success"})
+                    with patch(
+                        "ols.src.query_helpers.docs_summarizer.LLMChain", new=ml
+                    ):
+                        conversation_id = suid.get_suid()
+                        response = client.post(
+                            "/v1/query",
+                            json={
+                                "conversation_id": conversation_id,
+                                "query": "test query",
+                            },
+                        )
+                        print(response)
+                        assert response.status_code == requests.codes.ok
+                        assert (
+                            "The following response was generated without access "
+                            "to reference content:" in response.json()["response"]
+                        )
