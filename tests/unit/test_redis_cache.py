@@ -5,11 +5,10 @@ from unittest.mock import patch
 import pytest
 
 from ols.app.models.config import RedisConfig
+from ols.src.cache.conversation import Conversation
 from ols.src.cache.redis_cache import RedisCache
 from ols.utils import suid
-from ols.src.cache.conversation import Conversation
 from tests.mock_classes.redis import MockRedis
-
 
 conversation_id = suid.get_suid()
 
@@ -26,8 +25,12 @@ def cache():
 def test_insert_or_append(cache):
     """Test the behavior of insert_or_append method."""
     assert cache.get("user1", conversation_id) is None
-    cache.insert_or_append("user1", conversation_id, Conversation("User Message1","Assistant Message1"))
-    assert cache.get("user1", conversation_id) == [Conversation("User Message1","Assistant Message1")]
+    cache.insert_or_append(
+        "user1", conversation_id, Conversation("User Message1", "Assistant Message1")
+    )
+    assert cache.get("user1", conversation_id) == [
+        Conversation("User Message1", "Assistant Message1")
+    ]
 
 
 def test_insert_or_append_existing_key(cache):
@@ -35,9 +38,13 @@ def test_insert_or_append_existing_key(cache):
     # conversation IDs are separated by users
     assert cache.get("user2", conversation_id) is None
 
-    cache.insert_or_append("user2", conversation_id, Conversation("User Message1","Assistant Message1"))
-    cache.insert_or_append("user2", conversation_id, Conversation("User Message2","Assistant Message2"))
-    expected_messages=[]
+    cache.insert_or_append(
+        "user2", conversation_id, Conversation("User Message1", "Assistant Message1")
+    )
+    cache.insert_or_append(
+        "user2", conversation_id, Conversation("User Message2", "Assistant Message2")
+    )
+    expected_messages = []
     expected_messages.append(Conversation("User Message1", "Assistant Message1"))
     expected_messages.append(Conversation("User Message2", "Assistant Message2"))
     assert cache.get("user2", conversation_id) == expected_messages

@@ -9,11 +9,11 @@ from langchain.prompts import PromptTemplate
 from ols import constants
 from ols.app import metrics
 from ols.app.models.models import LLMRequest
+from ols.src.cache.conversation import Conversation
 from ols.src.llms.llm_loader import LLMConfigurationError, LLMLoader
 from ols.src.query_helpers.docs_summarizer import DocsSummarizer
 from ols.src.query_helpers.question_validator import QuestionValidator
 from ols.utils import config, suid
-from ols.src.cache.conversation import Conversation
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +59,7 @@ def conversation_request(llm_request: LLMRequest) -> LLMRequest:
         validation_result = question_validator.validate_question(
             conversation_id, llm_request.query
         )
+        # validation_result = constants.SUBJECT_VALID
     except LLMConfigurationError as e:
         metrics.llm_calls_validation_errors_total.inc()
         raise HTTPException(
@@ -115,7 +116,7 @@ def conversation_request(llm_request: LLMRequest) -> LLMRequest:
                 )
 
     if config.conversation_cache is not None:
-        conversation = Conversation(llm_request.query,str(llm_response.response or ""))
+        conversation = Conversation(llm_request.query, str(llm_response.response or ""))
         config.conversation_cache.insert_or_append(
             user_id,
             conversation_id,

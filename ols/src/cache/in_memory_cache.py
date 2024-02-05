@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import threading
 from collections import deque
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, List, Union
 
 if TYPE_CHECKING:
     from ols.app.models.config import MemoryConfig
+    from ols.src.cache.conversation import Conversation
+
 from ols.src.cache.cache import Cache
-from ols.src.cache.conversation import Conversation
-from typing import List
 
 
 class InMemoryCache(Cache):
@@ -33,7 +33,9 @@ class InMemoryCache(Cache):
         self.deque: deque[str] = deque()
         self.cache: dict[str, List[Conversation]] = {}
 
-    def get(self, user_id: str, conversation_id: str) -> Union[List[Conversation], None]:
+    def get(
+        self, user_id: str, conversation_id: str
+    ) -> Union[List[Conversation], None]:
         """Get the value associated with the given key.
 
         Args:
@@ -52,7 +54,9 @@ class InMemoryCache(Cache):
         self.deque.appendleft(key)
         return self.cache[key]
 
-    def insert_or_append(self, user_id: str, conversation_id: str, value: Conversation) -> None:
+    def insert_or_append(
+        self, user_id: str, conversation_id: str, value: Conversation
+    ) -> None:
         """Set the value if a key is not present or else simply appends.
 
         Args:

@@ -1,19 +1,24 @@
 """A class for summarizing documentation context."""
 
 import logging
-from typing import Optional
+from typing import List, Optional
 
 import llama_index
+from langchain.chains import LLMChain
 from llama_index import ServiceContext, StorageContext, load_index_from_storage
-from llama_index.prompts import PromptTemplate
-from llama_index.chat_engine.condense_question import CondenseQuestionChatEngine
+from llama_index.prompts import PromptTemplate as LlamaTemplate
 from llama_index.response.schema import Response
 
 from ols import constants
+from ols.src.cache.conversation import Conversation
 from ols.src.llms.llm_loader import LLMLoader
 from ols.src.query_helpers import QueryHelper
+from ols.src.query_helpers.chat_history import (
+    get_langchain_chat_history,
+    get_llama_index_chat_history,
+)
+from ols.src.query_helpers.constants import summary_prompt_for_langchain
 from ols.utils import config
-from ols.src.query_helpers.chat_history import get_llama_index_chat_history
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +27,11 @@ class DocsSummarizer(QueryHelper):
     """A class for summarizing documentation context."""
 
     def summarize(
-        self, conversation: str, query: str, history: Optional[str] = None, **kwargs
+        self,
+        conversation: str,
+        query: str,
+        history: Optional[List[Conversation]] = None,
+        **kwargs,
     ) -> tuple[str, str]:
         """Summarize the given query based on the provided conversation context.
 
@@ -55,10 +64,10 @@ class DocsSummarizer(QueryHelper):
         logger.info(f"{conversation} call settings: {settings_string}")
 
         # TODO: use history there
-        logger.info(f"History:  {history}")
-        chat_history=get_llama_index_chat_history(history)
-        logger.info(f"Chat history:  {history}")
-        summarization_template = PromptTemplate(constants.SUMMARIZATION_TEMPLATE)
+        logger.debug(f"History:  {history}")
+        chat_history = get_llama_index_chat_history(history)
+        logger.debug(f"Chat history for chat_engine:  {chat_history}")
+        summarization_template = LlamaTemplate(constants.SUMMARIZATION_TEMPLATE)
 
         logger.info(f"{conversation} Getting service context")
 
@@ -93,13 +102,13 @@ class DocsSummarizer(QueryHelper):
 
                 logger.info(f"{conversation} Submitting summarization query")
 
-                chat_engine=index.as_chat_engine(
+                chat_engine = index.as_chat_engine(
                     service_context=service_context,
                     chat_history=chat_history,
                     chat_mode="context",
                     system_prompt=summarization_template,
                 )
-                summary=chat_engine.chat(query)
+                summary = chat_engine.chat(query)
 
                 referenced_documents = "\n".join(
                     [
@@ -116,7 +125,16 @@ class DocsSummarizer(QueryHelper):
 
         if use_llm_without_reference_content:
             logger.info("Using llm to answer the query without reference content")
-            response = bare_llm.invoke(query)
+            chat_history = get_langchain_chat_history(history)
+            logger.debug(f"Chat history for chat_llm_chain:  {chat_history}")
+            chat_llm_chain = LLMChain(
+                llm=bare_llm,
+                prompt=summary_prompt_for_langchain,
+            )
+            response = chat_llm_chain.invoke(
+                {"query": query, "chat_history": chat_history}
+            )
+            response = response.get("text")
             summary = Response(
                 f""" The following response was generated without access to reference content:
                         {response}
