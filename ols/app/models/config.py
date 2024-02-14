@@ -2,6 +2,7 @@
 
 import logging
 import os
+import re
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -270,6 +271,49 @@ class MemoryConfig(BaseModel):
     def validate_yaml(self) -> None:
         """Validate memory cache config."""
 
+class Filter(BaseModel):
+    """Filter configuration."""
+
+    name: str = None
+    regular_expression: str = None
+    replace_with_string: str = None
+
+    def __init__(self, data: Optional[dict] = None) -> None:
+        """Initialize configuration and perform basic validation."""
+        super().__init__()
+        if data is None:
+            return
+        try:
+            self.name = data.get("name", None)
+            self.regular_expression = data.get("regular_expression", None)
+            self.replace_with_string = data.get("replace_with_string", None)
+            if self.name is None or self.regular_expression is None or self.replace_with_string is None:
+                raise ValueError
+        except ValueError:
+            raise InvalidConfigurationError(
+                "name,regular_expression and replace_with_string needs to be a string"
+            )
+
+    def __eq__(self, other) -> bool:
+        """Compare two objects for equality."""
+        if isinstance(other, Filter):
+            return (self.name == other.name
+            and self.regular_expression == other.regular_expression
+            and self.replace_with_string == other.replace_with_string)
+        return False
+
+    def validate_yaml(self) -> None:
+        """Validate memory cache config."""
+        if self.name is None:
+            raise InvalidConfigurationError("name is missing")
+        if self.regular_expression is None:
+            raise InvalidConfigurationError("regular_expression is missing")
+        try:
+            re.compile(self.regular_expression)
+        except re.error:
+            raise InvalidConfigurationError("regular_expression is invalid")
+        if self.replace_with_string is None:
+            raise InvalidConfigurationError("replace_with_string is missing")
 
 class ConversationCacheConfig(BaseModel):
     """Conversation cache configuration."""
@@ -427,6 +471,7 @@ class OLSConfig(BaseModel):
 
     default_provider: Optional[str] = None
     default_model: Optional[str] = None
+    question_filters: Optional[list[Filter]]= None
 
     def __init__(self, data: Optional[dict] = None) -> None:
         """Initialize configuration and perform basic validation."""
@@ -441,6 +486,10 @@ class OLSConfig(BaseModel):
         self.reference_content = ReferenceContent(data.get("reference_content", None))
         self.default_provider = data.get("default_provider", None)
         self.default_model = data.get("default_model", None)
+        if data.get("question_filters", None) is not None:
+            self.question_filters = []
+            for item in data.get("question_filters", None):
+                self.question_filters.append(Filter(item))
 
     def __eq__(self, other) -> bool:
         """Compare two objects for equality."""
@@ -451,6 +500,7 @@ class OLSConfig(BaseModel):
                 and self.reference_content == other.reference_content
                 and self.default_provider == other.default_provider
                 and self.default_model == other.default_model
+                and self.question_filters == other.question_filters
             )
         return False
 
@@ -460,6 +510,9 @@ class OLSConfig(BaseModel):
         self.logging_config.validate_yaml()
         if self.reference_content is not None:
             self.reference_content.validate_yaml()
+        if self.question_filters is not None:
+            for filter in self.question_filters:
+                filter.validate_yaml()
 
 
 class DevConfig(BaseModel):

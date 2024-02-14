@@ -14,11 +14,11 @@ from ols.src.llms.llm_loader import LLMConfigurationError, LLMLoader
 from ols.src.query_helpers.docs_summarizer import DocsSummarizer
 from ols.src.query_helpers.question_validator import QuestionValidator
 from ols.utils import config, suid
+from ols.utils.question_filter import QuestionFilter
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["query"])
-
 
 @router.post("/query")
 def conversation_request(llm_request: LLMRequest) -> LLMResponse:
@@ -45,6 +45,19 @@ def conversation_request(llm_request: LLMRequest) -> LLMResponse:
 
     # Log incoming request
     logger.info(f"{conversation_id} Incoming request: {llm_request.query}")
+
+    # Redact the input question
+    try:
+        query_redactor = QuestionFilter.setup()
+        llm_request.query = query_redactor.redact_question(llm_request.query)
+        logger.info(f"{conversation_id} Redacted query: {llm_request.query}")
+    except Exception as redactor_error:
+        logger.error("Error while redacting query")
+        logger.error(redactor_error)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"response": f"Error while redacting query '{e}'"},
+        )
 
     # Validate the query
     try:
