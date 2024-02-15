@@ -271,12 +271,13 @@ class MemoryConfig(BaseModel):
     def validate_yaml(self) -> None:
         """Validate memory cache config."""
 
+
 class Filter(BaseModel):
     """Filter configuration."""
 
-    name: str = None
-    regular_expression: str = None
-    replace_with_string: str = None
+    name: Optional[str] = None
+    regular_expression: Optional[str] = None
+    replace_with_string: Optional[str] = None
 
     def __init__(self, data: Optional[dict] = None) -> None:
         """Initialize configuration and perform basic validation."""
@@ -287,7 +288,11 @@ class Filter(BaseModel):
             self.name = data.get("name", None)
             self.regular_expression = data.get("regular_expression", None)
             self.replace_with_string = data.get("replace_with_string", None)
-            if self.name is None or self.regular_expression is None or self.replace_with_string is None:
+            if (
+                self.name is None
+                or self.regular_expression is None
+                or self.replace_with_string is None
+            ):
                 raise ValueError
         except ValueError:
             raise InvalidConfigurationError(
@@ -297,9 +302,11 @@ class Filter(BaseModel):
     def __eq__(self, other) -> bool:
         """Compare two objects for equality."""
         if isinstance(other, Filter):
-            return (self.name == other.name
-            and self.regular_expression == other.regular_expression
-            and self.replace_with_string == other.replace_with_string)
+            return (
+                self.name == other.name
+                and self.regular_expression == other.regular_expression
+                and self.replace_with_string == other.replace_with_string
+            )
         return False
 
     def validate_yaml(self) -> None:
@@ -314,6 +321,7 @@ class Filter(BaseModel):
             raise InvalidConfigurationError("regular_expression is invalid")
         if self.replace_with_string is None:
             raise InvalidConfigurationError("replace_with_string is missing")
+
 
 class ConversationCacheConfig(BaseModel):
     """Conversation cache configuration."""
@@ -471,7 +479,7 @@ class OLSConfig(BaseModel):
 
     default_provider: Optional[str] = None
     default_model: Optional[str] = None
-    question_filters: Optional[list[Filter]]= None
+    question_filters: Optional[list[Filter]] = None
 
     def __init__(self, data: Optional[dict] = None) -> None:
         """Initialize configuration and perform basic validation."""

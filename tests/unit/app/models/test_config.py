@@ -869,3 +869,157 @@ def test_config_improper_model():
                 },
             }
         ).validate_yaml()
+
+
+def test_config_improper_question_filter():
+    """Test the Config model with improper question filter (no name) is set."""
+    with pytest.raises(
+        InvalidConfigurationError,
+        match="name,regular_expression and replace_with_string needs to be a string",
+    ):
+        Config(
+            {
+                "llm_providers": [
+                    {
+                        "name": "test_provider_name",
+                        "url": "http://test_provider_url",
+                        "credentials_path": "tests/config/secret.txt",
+                        "models": [
+                            {
+                                "name": "test_model_name",
+                                "url": "http://test_model_url",
+                                "credentials_path": "tests/config/secret.txt",
+                            }
+                        ],
+                    }
+                ],
+                "ols_config": {
+                    "default_provider": "test_provider_name",
+                    "default_model": "test_default_model",
+                    "classifier_provider": "test_classifer_provider",
+                    "classifier_model": "test_classifier_model",
+                    "summarizer_provider": "test_summarizer_provider",
+                    "summarizer_model": "test_summarizer_model",
+                    "validator_provider": "test_validator_provider",
+                    "validator_model": "test_validator_model",
+                    "question_filters": [
+                        {
+                            "regular_expression": "test_regular_expression",
+                            "replace_with_string": "test_replace_with_string",
+                        }
+                    ],
+                    "conversation_cache": {
+                        "type": "memory",
+                        "memory": {
+                            "max_entries": 100,
+                        },
+                    },
+                    "logging_config": {
+                        "app_log_level": "error",
+                    },
+                },
+            }
+        ).validate_yaml()
+
+
+def test_config_with_multiple_question_filter():
+    """Test the Config model with multiple question filter is set."""
+    with pytest.raises(
+        InvalidConfigurationError,
+        match="default_model specifies an unknown model test_default_model",
+    ):
+        Config(
+            {
+                "llm_providers": [
+                    {
+                        "name": "openai",
+                        "url": "http://test_provider_url",
+                        "credentials_path": "tests/config/secret.txt",
+                        "models": [
+                            {
+                                "name": "test_model_name",
+                                "url": "http://test_model_url",
+                                "credentials_path": "tests/config/secret.txt",
+                            }
+                        ],
+                    },
+                ],
+                "ols_config": {
+                    "default_provider": "openai",
+                    "default_model": "test_default_model",
+                    "conversation_cache": {
+                        "type": "memory",
+                        "memory": {
+                            "max_entries": 100,
+                        },
+                    },
+                    "logging_config": {
+                        "app_log_level": "error",
+                    },
+                    "question_filters": [
+                        {
+                            "name": "test_name",
+                            "regular_expression": r"(?:\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})",
+                            "replace_with_string": "test_replace_with_string",
+                        },
+                        {
+                            "name": "test_name",
+                            "regular_expression": r"(?:https?://)?(?:www\.)?[\w\.-]+\.\w+",
+                            "replace_with_string": "test_replace_with_string",
+                        },
+                    ],
+                },
+            }
+        ).validate_yaml()
+
+
+def test_config_invalid_regex_question_filter():
+    """Test the Config model with improper question filter (no name) is set."""
+    with pytest.raises(
+        InvalidConfigurationError,
+        match="regular_expression is invalid",
+    ):
+        Config(
+            {
+                "llm_providers": [
+                    {
+                        "name": "test_provider_name",
+                        "url": "http://test_provider_url",
+                        "credentials_path": "tests/config/secret.txt",
+                        "models": [
+                            {
+                                "name": "test_model_name",
+                                "url": "http://test_model_url",
+                                "credentials_path": "tests/config/secret.txt",
+                            }
+                        ],
+                    }
+                ],
+                "ols_config": {
+                    "default_provider": "test_provider_name",
+                    "default_model": "test_default_model",
+                    "classifier_provider": "test_classifer_provider",
+                    "classifier_model": "test_classifier_model",
+                    "summarizer_provider": "test_summarizer_provider",
+                    "summarizer_model": "test_summarizer_model",
+                    "validator_provider": "test_validator_provider",
+                    "validator_model": "test_validator_model",
+                    "question_filters": [
+                        {
+                            "name": "test_name",
+                            "regular_expression": "[",
+                            "replace_with_string": "test_replace_with_string",
+                        }
+                    ],
+                    "conversation_cache": {
+                        "type": "memory",
+                        "memory": {
+                            "max_entries": 100,
+                        },
+                    },
+                    "logging_config": {
+                        "app_log_level": "error",
+                    },
+                },
+            }
+        ).validate_yaml()

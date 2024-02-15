@@ -1,45 +1,51 @@
+"""A class helps redact the question based on the regex filters provided in the config file."""
 
-import re
 import logging
-from ols.utils import config
+import re
 from collections import namedtuple
-constants = []
-ip_address_regex = r"(?:\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})"
-perfect_word_regex = r"\b(?:fullword)\b"
-anywhere_in_word_regex = r"(?:partword)"
-url_regex = r"(?:https?://)?(?:www\.)?[\w\.-]+\.\w+"
-constants.append(ip_address_regex)
-constants.append(perfect_word_regex)
-constants.append(anywhere_in_word_regex)
-constants.append(url_regex)
+from typing import Optional
+
+from ols.utils import config
 
 logger = logging.getLogger(__name__)
 
-#namedtuple
 RegexFilter = namedtuple("RegexFilter", "pattern, name, replace_with_string")
 
 
-
 class QuestionFilter:
-    def __init__(self, regex_filters):
+    """Redact the question based on the regex filters provided in the config file."""
+
+    def __init__(self, regex_filters: Optional[list[RegexFilter]]) -> None:
+        """Initialize the class instance."""
         self.regex_filters = regex_filters
 
     @classmethod
-    def setup(cls):
-        logger.info(f"Question filters : {config.ols_config.question_filters}")
-        regex_filters = []
+    def setup(cls) -> "QuestionFilter":
+        """Set up  the class instance using question_filter found in Config."""
+        logger.debug(f"Question filters : {config.ols_config.question_filters}")
+        regex_filters: list[RegexFilter] = []
+        if not config.ols_config.question_filters:
+            return cls(regex_filters)
         for filter in config.ols_config.question_filters:
             try:
-                pattern = re.compile(filter.regular_expression,flags=re.IGNORECASE)              
-                regex_filters.append(RegexFilter(pattern=pattern,name=filter.name,replace_with_string=filter.replace_with_string))   
+                pattern = re.compile(
+                    str(filter.regular_expression), flags=re.IGNORECASE
+                )
+                regex_filters.append(
+                    RegexFilter(
+                        pattern=pattern,
+                        name=filter.name,
+                        replace_with_string=filter.replace_with_string,
+                    )
+                )
             except Exception as e:
                 logger.error(f"Error while compiling regex {filter.regular_expression}")
                 logger.error(e)
         return cls(regex_filters)
 
-    def redact_question(self, question):
+    def redact_question(self, question: str) -> str:
+        """Redact the question using regex built."""
         for filter in self.regex_filters:
             question, count = filter.pattern.subn(filter.replace_with_string, question)
-            logger.info(f"Number of replacements with filter : {count} {filter[1]}")
+            logger.info(f"Replaced: {count} matched with filter : {filter.name}")
         return question
-

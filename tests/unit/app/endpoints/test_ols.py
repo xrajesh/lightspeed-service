@@ -13,6 +13,7 @@ from ols.src.llms.llm_loader import LLMConfigurationError
 from ols.utils import config, suid
 from tests.mock_classes.llm_chain import mock_llm_chain
 from tests.mock_classes.llm_loader import mock_llm_loader
+from tests.mock_classes.mock_question_filter import MockQuestionFilter
 
 
 @pytest.fixture(scope="module")
@@ -40,6 +41,7 @@ def test_retrieve_conversation_id_existing_id(load_config):
 @patch("ols.src.query_helpers.question_validator.QuestionValidator.validate_question")
 @patch("ols.src.query_helpers.docs_summarizer.DocsSummarizer.summarize")
 @patch("ols.utils.config.conversation_cache.get")
+@patch("ols.utils.question_filter.QuestionFilter.setup", new=MockQuestionFilter.setup)
 def test_conversation_request(
     mock_conversation_cache_get,
     mock_summarize,

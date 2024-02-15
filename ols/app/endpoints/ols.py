@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["query"])
 
+
 @router.post("/query")
 def conversation_request(llm_request: LLMRequest) -> LLMResponse:
     """Handle conversation requests for the OLS endpoint.
@@ -48,15 +49,15 @@ def conversation_request(llm_request: LLMRequest) -> LLMResponse:
 
     # Redact the input question
     try:
-        query_redactor = QuestionFilter.setup()
-        llm_request.query = query_redactor.redact_question(llm_request.query)
+        redacted_query = QuestionFilter.setup().redact_question(llm_request.query)
+        llm_request.query = redacted_query
         logger.info(f"{conversation_id} Redacted query: {llm_request.query}")
     except Exception as redactor_error:
         logger.error("Error while redacting query")
         logger.error(redactor_error)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"response": f"Error while redacting query '{e}'"},
+            detail={"response": f"Error while redacting query '{redactor_error}'"},
         )
 
     # Validate the query
