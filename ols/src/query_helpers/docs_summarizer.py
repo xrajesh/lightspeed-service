@@ -20,6 +20,7 @@ from ols.constants import MAX_ITERATIONS, GenericLLMParameters
 from ols.customize import reranker
 from ols.src.prompts.prompt_generator import GeneratePrompt
 from ols.src.query_helpers.query_helper import QueryHelper
+from ols.src.skills import create_skill_tools, load_skills
 from ols.src.tools.tools import execute_tool_calls
 from ols.utils.mcp_utils import build_mcp_config, gather_mcp_tools
 from ols.utils.token_handler import TokenHandler
@@ -112,11 +113,27 @@ class DocsSummarizer(QueryHelper):
             config.mcp_servers, self.user_token, self.client_headers
         )
 
-        if self.mcp_servers:
+        # skills – built-in tools always available to the LLM
+        skill_dirs = config.ols_config.skills.directories
+        self._skill_registry = load_skills(skill_dirs) if skill_dirs else None
+        self._skill_tools = (
+            create_skill_tools(self._skill_registry) if self._skill_registry else []
+        )
+        if self._skill_tools:
+            logger.info(
+                "Skill tools enabled with %d skills",
+                len(self._skill_registry.entries),
+            )
+
+        has_mcp = bool(self.mcp_servers)
+        has_skills = bool(self._skill_tools)
+
+        if has_mcp:
             logger.info("MCP servers provided: %s", list(self.mcp_servers.keys()))
+        if has_mcp or has_skills:
             self._tool_calling_enabled = True
         else:
-            logger.debug("No MCP servers provided, tool calling is disabled")
+            logger.debug("No MCP servers or skills provided, tool calling is disabled")
             self._tool_calling_enabled = False
 
         set_debug(self.verbose)
@@ -290,6 +307,9 @@ class DocsSummarizer(QueryHelper):
         async with asyncio.timeout(constants.TOOL_CALL_ROUND_TIMEOUT * max_rounds):
             all_mcp_tools = await gather_mcp_tools(self.mcp_servers)
 
+            # Merge built-in skill tools so they are always available
+            all_tools = self._skill_tools + all_mcp_tools
+
             # Track cumulative token usage for tool outputs
             tool_tokens_used = 0
             max_tokens_for_tools = self.model_config.parameters.max_tokens_for_tools
@@ -299,11 +319,11 @@ class DocsSummarizer(QueryHelper):
             token_handler = TokenHandler()
 
             # Account for tool definitions tokens (schemas sent to LLM)
-            if all_mcp_tools:
+            if all_tools:
                 tool_definitions_text = json.dumps(
                     [
                         {"name": t.name, "description": t.description, "schema": t.args}
-                        for t in all_mcp_tools
+                        for t in all_tools
                     ]
                 )
                 tool_definitions_tokens = TokenHandler._get_token_count(
@@ -326,7 +346,7 @@ class DocsSummarizer(QueryHelper):
                 async for chunk in self._invoke_llm(
                     messages,
                     llm_input_values,
-                    tools_map=all_mcp_tools,
+                    tools_map=all_tools,
                     is_final_round=is_final_round,
                     token_counter=token_counter,
                 ):
@@ -411,7 +431,7 @@ class DocsSummarizer(QueryHelper):
                     # execute tools and add to messages
                     tool_calls_messages = await execute_tool_calls(
                         tool_calls,
-                        all_mcp_tools,
+                        all_tools,
                         max(
                             effective_per_tool_limit, 100
                         ),  # Minimum 100 tokens per tool

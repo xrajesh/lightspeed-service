@@ -656,6 +656,24 @@ class ToolFilteringConfig(BaseModel):
     )
 
 
+class SkillConfig(BaseModel):
+    """Configuration for agent skills.
+
+    Skills provide on-demand instructions and domain knowledge via progressive
+    disclosure.  The LLM discovers available skills through a built-in
+    ``search_skills`` tool and fetches full instructions only when relevant.
+    """
+
+    directories: list[str] = Field(
+        default_factory=list,
+        title="Skill directories",
+        description=(
+            "List of directory paths containing skill folders. "
+            "Each subfolder must contain a SKILL.md file."
+        ),
+    )
+
+
 class MCPServers(BaseModel):
     """MCP servers configuration."""
 
@@ -1082,6 +1100,7 @@ class OLSConfig(BaseModel):
     proxy_config: Optional[ProxyConfig] = None
 
     tool_filtering: Optional[ToolFilteringConfig] = None
+    skills: SkillConfig = SkillConfig()
 
     def __init__(
         self, data: Optional[dict] = None, ignore_missing_certs: bool = False
@@ -1137,6 +1156,8 @@ class OLSConfig(BaseModel):
         self.proxy_config = ProxyConfig(data.get("proxy_config"))
         if data.get("tool_filtering", None) is not None:
             self.tool_filtering = ToolFilteringConfig(**data.get("tool_filtering"))
+        if data.get("skills", None) is not None:
+            self.skills = SkillConfig(**data.get("skills"))
 
     def __eq__(self, other: object) -> bool:
         """Compare two objects for equality."""
@@ -1161,6 +1182,7 @@ class OLSConfig(BaseModel):
                 and self.quota_handlers == other.quota_handlers
                 and self.proxy_config == other.proxy_config
                 and self.tool_filtering == other.tool_filtering
+                and self.skills == other.skills
             )
         return False
 

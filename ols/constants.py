@@ -243,3 +243,7 @@ MCP_CLIENT_PLACEHOLDER = "client"
 # timeout value for a single llm with tools round
 # Keeping it really high at this moment (until this is configurable)
 TOOL_CALL_ROUND_TIMEOUT = 300
+
+# Skills configuration
+SKILL_FILE_NAME = "SKILL.md"
+SKILL_DESCRIPTION_MAX_LENGTH = 1024
